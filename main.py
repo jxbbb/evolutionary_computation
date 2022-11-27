@@ -81,7 +81,7 @@ def visualizer(city_positions, results, training_processes):
     plt.plot(training_processes)
     plt.title("fit ourte")
     plt.show()
-    plt.savefig("ga.jpg")
+    plt.savefig("sga.jpg")
 
 
 
