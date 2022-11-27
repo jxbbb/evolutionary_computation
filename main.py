@@ -1,5 +1,5 @@
 import numpy as np
-from ga import Ga
+from sga import SGA
 import matplotlib.pyplot as plt
 import argparse
 import torch
@@ -27,41 +27,40 @@ def seed_everything(seed):
 seed_everything(seed)
 
 def check_params(params):
-    assert params['n'] >= 10
+    assert params['city_numbers'] >= 10
 
 def TSP_init():
     params = {
-        "n": 30,
+        "city_numbers": 30,
     }
     check_params(params)
-    city_pos_list = np.random.rand(params['n'], 2)
-    # 城市距离矩阵
-    city_dist_mat = build_dist_mat(params, city_pos_list)
-    return params, city_pos_list, city_dist_mat  
+    city_positions = np.random.rand(params['city_numbers'], 2)
+    distance_matrix = build_dist_mat(params, city_positions)
+    return params, city_positions, distance_matrix  
 
 def ga_init():
     params = {
-        'gene_len': 30,
-        "individual_num": 60,
+        'sequence_len': 30,
+        "ind_num": 60,
         "gen_num": 800,
         "mutate_prob": 0.3,
-        "method": 'ga',
+        "method": 'sga',
     }
     return params
 
 def ant_init():
     params = {
-        "individual_num": 60,
+        "ind_num": 60,
         "gen_num": 800,
         "method": 'ant',
     }
     return params
 
 def build_dist_mat(params, input_list):
-    n = params['n']
-    dist_mat = np.zeros([n, n])
-    for i in range(n):
-        for j in range(i + 1, n):
+    city_numbers = params['city_numbers']
+    dist_mat = np.zeros([city_numbers, city_numbers])
+    for i in range(city_numbers):
+        for j in range(i + 1, city_numbers):
             d = input_list[i, :] - input_list[j, :]
             # 计算点积
             dist_mat[i, j] = np.dot(d, d)
@@ -69,25 +68,22 @@ def build_dist_mat(params, input_list):
     return dist_mat
 
 
-def visualizer(city_pos_list, result_pos_list, fitness_list):
+def visualizer(city_positions, result_pos_list, fitness_list):
     plt.figure()
-    plt.scatter(city_pos_list[:, 0],city_pos_list[:, 1])
+    plt.scatter(city_positions[:, 0],city_positions[:, 1])
     plt.title("start")
-    # plt.legend()
     plt.show()
     plt.savefig("start.jpg")
 
     plt.figure()
     plt.plot(result_pos_list[:, 0], result_pos_list[:, 1])
     plt.title("route")
-    # plt.legend()
     plt.show()
     plt.savefig("results.jpg")
 
     plt.figure()
     plt.plot(fitness_list)
     plt.title("fit ourte")
-    # plt.legend()
     plt.show()
     plt.savefig("ga_0.9.jpg")
 
@@ -95,24 +91,23 @@ def visualizer(city_pos_list, result_pos_list, fitness_list):
 
 if __name__ == '__main__':
 
-    methods = ['ga', 'ant']
+    methods = ['sga', 'ant']
 
-    params, city_pos_list, city_dist_mat  = TSP_init()
-    print(city_pos_list)
-    print(city_dist_mat)
+    params, city_positions, distance_matrix  = TSP_init()
+    print(city_positions)
+    print(distance_matrix)
 
 
     for method in methods:
-        if method == 'ga':
+        if method == 'sga':
             params.update(ga_init())
-            # 遗传算法运行
-            ga = Ga(params, city_dist_mat)
-            result_list, fitness_list = ga.train()
+            sga = SGA(params, distance_matrix)
+            result_list, fitness_list = sga.train()
             result = result_list[-1]
-            result_pos_list = city_pos_list[result, :]
+            result_pos_list = city_positions[result, :]
         elif method == 'ant':
             params.update(ant_init())
         else:
             raise Exception("Methods not implemented")
 
-        visualizer(city_pos_list, result_pos_list, fitness_list)
+        visualizer(city_positions, result_pos_list, fitness_list)
