@@ -77,8 +77,8 @@ class SGA:
         # self.ind_list = selected_winners
 
         # 锦标赛
-        competition_num = 10
-        competitor_number = 10
+        competition_num = 15
+        competitor_number = 15
         winner_number = self.params['ind_num'] // competition_num
         winners = []
         for _ in range(competition_num):
