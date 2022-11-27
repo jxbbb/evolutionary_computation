@@ -35,15 +35,22 @@ def TSP_init():
     }
     check_params(params)
     city_positions = np.random.rand(params['city_numbers'], 2)
-    distance_matrix = build_dist_mat(params, city_positions)
+
+    city_numbers = params['city_numbers']
+    distance_matrix = np.zeros([city_numbers, city_numbers])
+    for i in range(city_numbers):
+        for j in range(i + 1, city_numbers):
+            d = city_positions[i, :] - city_positions[j, :]
+            distance_matrix[i, j] = np.dot(d, d)
+            distance_matrix[j, i] = distance_matrix[i, j]
     return params, city_positions, distance_matrix  
 
 def ga_init():
     params = {
         'sequence_len': 30,
         "ind_num": 60,
-        "gen_num": 800,
-        "mutate_prob": 0.3,
+        "iteration_number": 800,
+        "mutate_rate": 0.3,
         "method": 'sga',
     }
     return params
@@ -51,24 +58,13 @@ def ga_init():
 def ant_init():
     params = {
         "ind_num": 60,
-        "gen_num": 800,
+        "iteration_number": 800,
         "method": 'ant',
     }
     return params
 
-def build_dist_mat(params, input_list):
-    city_numbers = params['city_numbers']
-    dist_mat = np.zeros([city_numbers, city_numbers])
-    for i in range(city_numbers):
-        for j in range(i + 1, city_numbers):
-            d = input_list[i, :] - input_list[j, :]
-            # 计算点积
-            dist_mat[i, j] = np.dot(d, d)
-            dist_mat[j, i] = dist_mat[i, j]
-    return dist_mat
 
-
-def visualizer(city_positions, result_pos_list, fitness_list):
+def visualizer(city_positions, results, training_processes):
     plt.figure()
     plt.scatter(city_positions[:, 0],city_positions[:, 1])
     plt.title("start")
@@ -76,16 +72,16 @@ def visualizer(city_positions, result_pos_list, fitness_list):
     plt.savefig("start.jpg")
 
     plt.figure()
-    plt.plot(result_pos_list[:, 0], result_pos_list[:, 1])
+    plt.plot(results[:, 0], results[:, 1])
     plt.title("route")
     plt.show()
     plt.savefig("results.jpg")
 
     plt.figure()
-    plt.plot(fitness_list)
+    plt.plot(training_processes)
     plt.title("fit ourte")
     plt.show()
-    plt.savefig("ga_0.9.jpg")
+    plt.savefig("ga.jpg")
 
 
 
@@ -102,12 +98,13 @@ if __name__ == '__main__':
         if method == 'sga':
             params.update(ga_init())
             sga = SGA(params, distance_matrix)
-            result_list, fitness_list = sga.train()
+            result_list, training_processes = sga.iteration()
             result = result_list[-1]
-            result_pos_list = city_positions[result, :]
+            results = city_positions[result, :]
         elif method == 'ant':
             params.update(ant_init())
+            # not implemented
         else:
             raise Exception("Methods not implemented")
 
-        visualizer(city_positions, result_pos_list, fitness_list)
+        visualizer(city_positions, results, training_processes)
