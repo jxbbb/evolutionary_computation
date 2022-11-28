@@ -4,7 +4,7 @@ import argparse
 import torch
 import random
 from copy import copy
-
+from tqdm import tqdm
 
 seed = 777
 
@@ -52,6 +52,7 @@ def ga_init():
         "iteration_number": 800,
         "mutate_rate": 0.3,
         "method": 'sga',
+        "select_method": 'championship'
     }
     return params
 
@@ -73,18 +74,20 @@ class SGA:
         self.result_list = []
         self.fitness_list = []
 
+        # Probability of Sorting Selection Method
         selection_probability = np.random.dirichlet(np.ones(2*self.params['ind_num']), size=1)[0]
         self.selection_probability = sorted(selection_probability, reverse=True)
 
-    def iteration(self):
+    def iteration_process(self):
         self.ind_list = [Individual(self.params, self.distance_matrix) for _ in range(self.params['ind_num'])]
         self.best = self.ind_list[0]
-        for _ in range(self.params['iteration_number']):
-            self.next_gen()
+        for _ in tqdm(range(self.params['iteration_number'])):
+            self.iter()
             result = copy(self.best.sequence_encodding)
             result.append(result[0])
             self.result_list.append(result)
             self.fitness_list.append(self.best.fitness)
+        print("********** sga done\t**********")
         return self.result_list, self.fitness_list
 
     def cross(self):
@@ -120,38 +123,41 @@ class SGA:
         self.ind_list += new_gen
 
     def select(self):
-        # 选择排序法，目前还有bug
-        # fitness_list = [ind.fitness for ind in self.ind_list]
-        # rank = np.argsort(fitness_list)
-        # selection_probability = np.array(self.selection_probability)[rank]
+        if self.params['select_method'] == 'sort':
+            # 选择排序法
+            fitness_list = [ind.fitness for ind in self.ind_list]
+            rank = np.argsort(fitness_list)
+            selection_probability = np.array(self.selection_probability)[rank]
 
-        # selected_winners = []
-        # i = 0
-        # while i < self.params['ind_num']:
-        #     selected = np.random.choice(self.ind_list, p=selection_probability)
-        #     if selected not in selected_winners:
-        #         selected_winners.append(selected)
-        #         i+=1
-        #     else:
-        #         continue
-        
-        # self.ind_list = selected_winners
+            selected_winners = []
+            i = 0
+            while i < self.params['ind_num']:
+                selected = np.random.choice(self.ind_list, p=selection_probability)
+                if selected not in selected_winners:
+                    selected_winners.append(selected)
+                    i+=1
+                else:
+                    continue
+            
+            self.ind_list = selected_winners
+        elif self.params['select_method'] == 'championship':
+            # 锦标赛
+            competition_num = 15
+            competitor_number = 15
+            winner_number = self.params['ind_num'] // competition_num
+            winners = []
+            for _ in range(competition_num):
+                competitors = []
+                for _ in range(competitor_number):
+                    competitor = random.choice(self.ind_list)
+                    competitor = Individual(self.params, self.distance_matrix, competitor.sequence_encodding)
+                    competitors.append(competitor)
+                winners += sorted(competitors, key=lambda x:x.fitness)[:winner_number]
+            self.ind_list = winners
+        else:
+            raise Exception("Select method not implemented")
 
-        # 锦标赛
-        competition_num = 15
-        competitor_number = 15
-        winner_number = self.params['ind_num'] // competition_num
-        winners = []
-        for _ in range(competition_num):
-            competitors = []
-            for _ in range(competitor_number):
-                competitor = random.choice(self.ind_list)
-                competitor = Individual(self.params, self.distance_matrix, competitor.sequence_encodding)
-                competitors.append(competitor)
-            winners += sorted(competitors, key=lambda x:x.fitness)[:winner_number]
-        self.ind_list = winners
-
-    def next_gen(self):
+    def iter(self):
         new_gen = self.cross()
         self.mutate(new_gen)
         self.select()
@@ -202,17 +208,14 @@ if __name__ == '__main__':
     methods = ['sga', 'ant']
 
     params, city_positions, distance_matrix  = TSP_init()
-    print(city_positions)
-    print(distance_matrix)
-
 
     for method in methods:
+        print(f"********** method: {method}\t**********")
         if method == 'sga':
             params.update(ga_init())
             sga = SGA(params, distance_matrix)
-            result_list, training_processes = sga.iteration()
-            result = result_list[-1]
-            results = city_positions[result, :]
+            result_list, training_processes = sga.iteration_process()
+            results = city_positions[result_list[-1], :]
         elif method == 'ant':
             params.update(ant_init())
             # not implemented
