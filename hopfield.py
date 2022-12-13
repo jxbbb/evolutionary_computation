@@ -8,50 +8,41 @@ class HM:
         self.city_positions = city_positions
         self.distance_matrix = distance_matrix
         
-        self.distance = None
-        self.N = None
-        self.A = None
-        self.D = None
+        self.city_numbers = len(city_positions)
+        self.rho_1 = self.city_numbers * self.city_numbers
+        self.rho_2 = self.city_numbers / 2
 
 
     def price_cn(self, vec1, vec2):
         return np.linalg.norm(np.array(vec1) - np.array(vec2))
+
     def calc_distance(self, path):
         dis = 0.0
         for i in range(len(path) - 1):
-            dis += self.distance[path[i]][path[i+1]]
+            dis += self.distance_matrix[path[i]][path[i+1]]
         return dis
 
-    def get_distance(self, citys):
-        N = len(citys)
-        distance = np.zeros((N, N))
-        for i, curr_point in enumerate(citys):
-            line = []
-            [line.append(self.price_cn(curr_point, other_point)) if i != j else line.append(0.0) for j, other_point in enumerate(citys)]
-            distance[i] = line
-        self.distance = distance
-        return distance
 
     def calc_du(self, V, distance):
         a = np.sum(V, axis=0) - 1
         b = np.sum(V, axis=1) - 1
-        N = self.N
-        A = self.A
-        D = self.D
-        t1 = np.zeros((N, N))
-        t2 = np.zeros((N, N))
-        for i in range(N):
-            for j in range(N):
+        city_numbers = self.city_numbers
+        rho_1 = self.rho_1
+        rho_2 = self.rho_2
+        t1 = np.zeros((city_numbers, city_numbers))
+        t2 = np.zeros((city_numbers, city_numbers))
+        for i in range(city_numbers):
+            for j in range(city_numbers):
                 t1[i, j] = a[j]
-        for i in range(N):
-            for j in range(N):
+        for i in range(city_numbers):
+            for j in range(city_numbers):
                 t2[j, i] = b[j]
-        c_1 = V[:, 1:N]
-        c_0 = np.zeros((N, 1))
+        c_1 = V[:, 1:city_numbers]
+        c_0 = np.zeros((city_numbers, 1))
         c_0[:, 0] = V[:, 0]
         c = np.concatenate((c_1, c_0), axis=1)
         c = np.dot(distance, c)
-        return -A * (t1 + t2) - D * c
+        return -rho_1 * (t1 + t2) - rho_2 * c
 
     def calc_U(self, U, du, step):
         return U + du * step
@@ -60,28 +51,28 @@ class HM:
         return 1 / 2 * (1 + np.tanh(U / U0))
 
     def calc_energy(self, V, distance):
-        N = self.N
-        A = self.A
-        D = self.D
+        city_numbers = self.city_numbers
+        rho_1 = self.rho_1
+        rho_2 = self.rho_2
         t1 = np.sum(np.power(np.sum(V, axis=0) - 1, 2))
         t2 = np.sum(np.power(np.sum(V, axis=1) - 1, 2))
-        idx = [i for i in range(1, N)]
+        idx = [i for i in range(1, city_numbers)]
         idx = idx + [0]
         Vt = V[:, idx]
         t3 = distance * Vt
         t3 = np.sum(np.sum(np.multiply(V, t3)))
-        e = 0.5 * (A * (t1 + t2) + D * t3)
+        e = 0.5 * (rho_1 * (t1 + t2) + rho_2 * t3)
         return e
 
     def check_path(self, V):
-        N = self.N
-        A = self.A
-        D = self.D
-        newV = np.zeros([N, N])
+        city_numbers = self.city_numbers
+        rho_1 = self.rho_1
+        rho_2 = self.rho_2
+        newV = np.zeros([city_numbers, city_numbers])
         route = []
-        for i in range(N):
+        for i in range(city_numbers):
             mm = np.max(V[:, i])
-            for j in range(N):
+            for j in range(city_numbers):
                 if V[j, i] == mm:
                     newV[j, i] = 1
                     route += [j]
@@ -96,19 +87,16 @@ class HM:
 
     def hopfield(self):
         citys = self.city_positions
-        print(citys)
-        distance = self.get_distance(citys)
-        self.N = len(citys)
-        self.A = self.N * self.N
-        self.D = self.N / 2
+        # print(citys)
+        distance = self.distance_matrix
+
         U0 = 0.0009
         step = 0.0001
         num_iter = 10000
-        U = 1 / 2 * U0 * np.log(self.N - 1) + (2 * (np.random.random((self.N, self.N))) - 1)
+        U = 1 / 2 * U0 * np.log(self.city_numbers - 1) + (2 * (np.random.random((self.city_numbers, self.city_numbers))) - 1)
         V = self.calc_V(U, U0)
         energys = np.array([0.0 for x in range(num_iter)])
         best_distance = np.inf
-        best_route = []
         H_path = []
         for n in tqdm(range(num_iter)):
             du = self.calc_du(V, distance)
@@ -116,7 +104,7 @@ class HM:
             V = self.calc_V(U, U0)
             energys[n] = self.calc_energy(V, distance)
             route, newV = self.check_path(V)
-            if len(np.unique(route)) == self.N:
+            if len(np.unique(route)) == self.city_numbers:
                 route.append(route[0])
                 dis = self.calc_distance(route)
                 if dis < best_distance:
@@ -133,7 +121,7 @@ class HM:
             self.draw_energys(energys)
             return final_path
         else:
-            print('没有找到最优解')
+            print('No optimal solution')
             return None
         
 
