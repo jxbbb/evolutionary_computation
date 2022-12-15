@@ -31,10 +31,10 @@ class SOM:
         x_max = self.city_positions[:,0].max(axis=0)
         y_max = self.city_positions[:,1].max(axis=0)
     
-        network1 = np.random.rand(self.num_neurons, 1)*x_max
-        network2 = np.random.rand(self.num_neurons, 1)*y_max
+        tmp1 = np.random.rand(self.num_neurons, 1)*x_max
+        tmp2 = np.random.rand(self.num_neurons, 1)*y_max
 
-        return np.concatenate((network1, network2), axis=1)
+        return np.concatenate((tmp1, tmp2), axis=1)
 
     def get_route_length(self, path):
         dis = 0.0
