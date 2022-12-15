@@ -12,18 +12,21 @@ class HM:
         self.rho_1 = self.city_numbers * self.city_numbers
         self.rho_2 = self.city_numbers / 2
 
+    def swap(self, v):
+        tmp_v = v.copy()
+        for i in range(len(tmp_v) - 1):
+            tmp_v[:, i] = tmp_v[: ,i + 1]
+        tmp_v[:, -1] = v[:, 0]
+        return tmp_v
 
-    def price_cn(self, vec1, vec2):
-        return np.linalg.norm(np.array(vec1) - np.array(vec2))
-
-    def calc_distance(self, path):
+    def get_route_length(self, path):
         dis = 0.0
         for i in range(len(path) - 1):
             dis += self.distance_matrix[path[i]][path[i+1]]
         return dis
 
 
-    def calc_du(self, V, distance):
+    def du_func(self, V):
         a = np.sum(V, axis=0) - 1
         b = np.sum(V, axis=1) - 1
         city_numbers = self.city_numbers
@@ -37,37 +40,24 @@ class HM:
         for i in range(city_numbers):
             for j in range(city_numbers):
                 t2[j, i] = b[j]
-        c_1 = V[:, 1:city_numbers]
-        c_0 = np.zeros((city_numbers, 1))
-        c_0[:, 0] = V[:, 0]
-        c = np.concatenate((c_1, c_0), axis=1)
-        c = np.dot(distance, c)
+        c = self.swap(V)
+        c = np.dot(self.distance_matrix, c)
         return -rho_1 * (t1 + t2) - rho_2 * c
 
-    def calc_U(self, U, du, step):
-        return U + du * step
-
-    def calc_V(self, U, U0):
-        return 1 / 2 * (1 + np.tanh(U / U0))
-
-    def calc_energy(self, V, distance):
+    def energy_func(self, V):
         city_numbers = self.city_numbers
         rho_1 = self.rho_1
         rho_2 = self.rho_2
         t1 = np.sum(np.power(np.sum(V, axis=0) - 1, 2))
         t2 = np.sum(np.power(np.sum(V, axis=1) - 1, 2))
-        idx = [i for i in range(1, city_numbers)]
-        idx = idx + [0]
-        Vt = V[:, idx]
-        t3 = distance * Vt
+        Vt = self.swap(V)
+        t3 = self.distance_matrix * Vt
         t3 = np.sum(np.sum(np.multiply(V, t3)))
-        e = 0.5 * (rho_1 * (t1 + t2) + rho_2 * t3)
-        return e
+        energy = 0.5 * (rho_1 * (t1 + t2) + rho_2 * t3)
+        return energy
 
-    def check_path(self, V):
+    def get_tsp_path(self, V):
         city_numbers = self.city_numbers
-        rho_1 = self.rho_1
-        rho_2 = self.rho_2
         newV = np.zeros([city_numbers, city_numbers])
         route = []
         for i in range(city_numbers):
@@ -86,40 +76,33 @@ class HM:
         plt.savefig("result/energy.jpg")
 
     def hopfield(self):
-        citys = self.city_positions
-        # print(citys)
-        distance = self.distance_matrix
-
-        U0 = 0.0009
-        step = 0.0001
+        U0 = 0.001
+        step = 0.0003
         num_iter = 10000
         U = 1 / 2 * U0 * np.log(self.city_numbers - 1) + (2 * (np.random.random((self.city_numbers, self.city_numbers))) - 1)
-        V = self.calc_V(U, U0)
+        V = 1 / 2 * (1 + np.tanh(U / U0))
         energys = np.array([0.0 for x in range(num_iter)])
         best_distance = np.inf
-        H_path = []
+        best_route = []
         for n in tqdm(range(num_iter)):
-            du = self.calc_du(V, distance)
-            U = self.calc_U(U, du, step)
-            V = self.calc_V(U, U0)
-            energys[n] = self.calc_energy(V, distance)
-            route, newV = self.check_path(V)
+            du = self.du_func(V)
+            U = U + du * step
+            V = 1 / 2 * (1 + np.tanh(U / U0))
+            energys[n] = self.energy_func(V)
+            route, newV = self.get_tsp_path(V)
             if len(np.unique(route)) == self.city_numbers:
                 route.append(route[0])
-                dis = self.calc_distance(route)
+                dis = self.get_route_length(route)
                 if dis < best_distance:
-                    H_path = []
+                    best_route.clear()
                     best_distance = dis
-                    best_route = route
-                    [H_path.append((route[i], route[i + 1])) for i in range(len(route) - 1)]
+                    for i in range(len(route)):
+                        best_route.append(route[i])
+                    best_route.append(route[0])
 
-        if len(H_path) > 0:
-            final_path = []
-            for h_path in H_path:
-                final_path.append(h_path[0])
-            final_path.append(H_path[0][0])
+        if len(best_route) > 0:
             self.draw_energys(energys)
-            return final_path
+            return best_route
         else:
             print('No optimal solution')
             return None
