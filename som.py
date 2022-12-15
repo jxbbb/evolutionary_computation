@@ -11,91 +11,91 @@ class SOM:
         self.params = params
         self.city_positions = city_positions
         self.distance_matrix = distance_matrix
-
-
-    def som(self):
-        citys = []
+        self.lr = 0.8
+        self.num_neurons = 10*len(city_positions)
+        
+        cities = []
         for i in range(len(self.city_positions)):
-            citys.append([i, self.city_positions[i][0], self.city_positions[i][1]])
+            cities.append([i, self.city_positions[i][0], self.city_positions[i][1]])
 
-        lr = 0.8
-        n = len(citys)*10
-        citys = np.array(citys)
-        temp_citys = citys.copy()
+        cities = np.array(cities)
+        self.cities = cities
+
+    def update_lr(self):
+        self.lr = self.lr * 0.99997
+
+    def update_neurons(self):
+        self.num_neurons = self.num_neurons * 0.9997
+
+    def init_som(self):
+        x_max = self.city_positions[:,0].max(axis=0)
+        y_max = self.city_positions[:,1].max(axis=0)
     
-        #normalize
-        x_min, y_min = citys.min(axis=0)[1:]
-        x_max, y_max = citys.max(axis=0)[1:]
-        citys[:,1] = (citys[:,1]-x_min)/(x_max-x_min)
-        citys[:,2] = (citys[:,2]-y_min)/(y_max-y_min)
-        # for i in range(len(citys)):
-        #     citys[i][1], citys[i][2] = (citys[i][1]-min_c)/(max_c-min_c), (citys[i][2]-min_c)/(max_c-min_c)
-    
-        network = np.random.rand(n, 2)
-        iterations = 100000
-        os.makedirs("./result", exist_ok=True)
-        for i in tqdm(range(iterations)):
-            select_city = random.randint(0,len(citys)-1)
-            city = citys[select_city][1:]
-    
-            nearest_n = -1
+        network1 = np.random.rand(self.num_neurons, 1)*x_max
+        network2 = np.random.rand(self.num_neurons, 1)*y_max
+
+        return np.concatenate((network1, network2), axis=1)
+
+    def get_route_length(self, path):
+        dis = 0.0
+        for i in range(len(path) - 1):
+            dis += self.distance_matrix[path[i]][path[i+1]]
+        return dis
+
+    def city_neuron_match(self, som):
+        city_neuron_matches = []
+        for i in range(len(self.city_positions)):
+            city_position = self.city_positions[i]
+            nearest_city = -1
             min_dis = float('inf')
-            for j in range(len(network)):
-                dis = math.sqrt(sum(pow(city - network[j], 2)))
+            for neuron in range(len(som)):
+                dis = math.sqrt(sum((city_position - som[neuron])**2))
                 if dis < min_dis:
                     min_dis = dis
-                    nearest_n = j
+                    nearest_city = neuron
+            city_neuron_matches.append([i, nearest_city])
+        city_neuron_matches = sorted(city_neuron_matches, key=lambda x:x[1])
+        city_neuron_matches.append(city_neuron_matches[0])
+        return [city_neuron_matches[j][0] for j in range(len(city_neuron_matches))]
+
+    def som(self):    
+        som = self.init_som()     
+
+        iterations = 50000
+        os.makedirs("./result", exist_ok=True)
+        for i in tqdm(range(iterations)):
+            select_city = random.randint(0,len(self.city_positions)-1)
+            city = self.city_positions[select_city]
     
-            radix = n // 10
-            if radix < 1:
-                radix = 1
+            nearest_neuron = -1
+            min_dis = float('inf')
+            for neuron in range(len(som)):
+                dis = math.sqrt(sum((city - som[neuron])**2))
+                if dis < min_dis:
+                    min_dis = dis
+                    nearest_neuron = neuron
+                
+            deltas = np.absolute(nearest_neuron - np.arange(som.shape[0]))
+            distances = np.minimum(deltas, som.shape[0] - deltas)
             
-            deltas = np.absolute(nearest_n - np.arange(network.shape[0]))
-            distances = np.minimum(deltas, network.shape[0] - deltas)
-            
-            gaussian = np.exp(-(distances*distances) / (2*(radix*radix)))
-            network += gaussian[:, np.newaxis] * lr * (city - network)
-            n = n * 0.9997
-            lr = lr * 0.99997
-    
+            filter = np.exp(-(distances*distances) / (2*(max(self.num_neurons // 10, 1)**2)))
+            som += filter[:, np.newaxis] * self.lr * (city - som)
+
+            self.update_neurons()
+            self.update_lr()
+
             if i%1000 == 0:
-                plt.scatter(citys[:,1], citys[:,2])
-                plt.plot(network[:,0], network[:,1])
+                plt.scatter(self.city_positions[:,0], self.city_positions[:,1])
+                plt.plot(som[:,0], som[:,1])
                 plt.savefig('./result/iter{}.jpg'.format(i))
                 plt.close()
     
     
-            if n < 1:
-                print('Radius has completely decayed, finishing execution',
-                'at {} iterations'.format(i))
-                break
-            if lr < 0.001:
-                print('Learning rate has completely decayed, finishing execution',
-                'at {} iterations'.format(i))
+            if self.num_neurons < 1 or self.lr < 0.001:
                 break
     
-    
-        new_citys = []
-        for i in range(len(citys)):
-            city = citys[i][1:]
-            nearest_city = -1
-            min_dis = float('inf')
-            for j in range(len(network)):
-                dis = math.sqrt(sum(pow(city - network[j], 2)))
-                if dis < min_dis:
-                    min_dis = dis
-                    nearest_city = j
-            new_citys.append([i, nearest_city])
-    
-        new_citys_ = sorted(new_citys, key=lambda x:x[1])
-        new_citys_.append(new_citys_[0])
-        new_citys_ = np.array(new_citys_)
-        final_path = temp_citys[new_citys_[:,0],:][:,1:]
-        path_lenght = 0
-        for i in range(len(final_path)-1):
-            path_lenght += math.sqrt(sum(pow(final_path[i] - final_path[i+1], 2)))
-        print('final distance:{}'.format(path_lenght))
-        return final_path
+        new_path = self.city_neuron_match(som)
+        return self.city_positions[new_path]
  
  
  
